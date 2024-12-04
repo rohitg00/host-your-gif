@@ -1,0 +1,13 @@
+node_modules/
+dist/
+uploads/*
+.git/
+*.log
+.env
+.env.*
+.replit
+.cache/
+coverage/
+build/
+tmp/
+temp/
