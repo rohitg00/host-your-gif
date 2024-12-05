@@ -1,156 +1,232 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
-import { uploadGif } from "../lib/api";
-
-interface UploadForm {
-  files: FileList;
-}
+import React, { useState, useRef } from 'react';
+import {
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalCloseButton,
+  Button,
+  VStack,
+  Text,
+  Image,
+  SimpleGrid,
+  Progress,
+  Switch,
+  FormControl,
+  FormLabel,
+  useToast,
+} from '@chakra-ui/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 interface UploadModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+export function UploadModal({ isOpen, onClose }: UploadModalProps) {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const form = useForm<UploadForm>();
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isPublic, setIsPublic] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
-  const validateFiles = (files: FileList): string | null => {
-    if (files.length > 10) {
-      return 'Maximum 10 files can be uploaded at once';
-    }
+  const uploadMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('gif', file);
+      });
+      formData.append('isPublic', String(isPublic));
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!file.type.startsWith('image/gif')) {
-        return 'Please upload only GIF files';
-      }
-      if (file.size > 50 * 1024 * 1024) {
-        return 'Each file must be less than 50MB';
-      }
-    }
-    return null;
-  };
-
-  const mutation = useMutation({
-    mutationFn: async (data: FormData[]) => {
-      const results = await Promise.all(data.map(formData => uploadGif(formData)));
-      return results;
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const progress = (progressEvent.loaded / progressEvent.total) * 100;
+            setUploadProgress(progress);
+          }
+        },
+      });
+      return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gifs"] });
+      queryClient.invalidateQueries({ queryKey: ['gifs'] });
       toast({
-        title: "Success",
-        description: "GIFs uploaded successfully",
+        title: 'Upload successful',
+        status: 'success',
+        duration: 3000,
       });
-      onOpenChange(false);
-      form.reset();
-      setPreviews([]);
+      handleClose();
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: "Failed to upload GIFs",
-        variant: "destructive",
+        title: 'Upload failed',
+        description: error.response?.data?.error || 'Something went wrong',
+        status: 'error',
+        duration: 3000,
       });
     },
   });
 
-  const onSubmit = async (data: UploadForm) => {
-    if (!data.files?.length) return;
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 10) {
+      toast({
+        title: 'Too many files',
+        description: 'You can only upload up to 10 files at once',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
 
-    const formDataArray = Array.from(data.files).map(file => {
-      const formData = new FormData();
-      formData.append("gif", file);
-      formData.append("title", file.name);
-      return formData;
+    const validFiles = files.filter(file => {
+      if (file.type !== 'image/gif') {
+        toast({
+          title: 'Invalid file type',
+          description: `${file.name} is not a GIF file`,
+          status: 'error',
+          duration: 3000,
+        });
+        return false;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: `${file.name} exceeds 50MB limit`,
+          status: 'error',
+          duration: 3000,
+        });
+        return false;
+      }
+      return true;
     });
 
-    mutation.mutate(formDataArray);
+    setSelectedFiles(validFiles);
+    setPreviews([]);
+    
+    // Create previews
+    validFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviews(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleUpload = () => {
+    if (!user) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please log in to upload GIFs',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+    
+    if (selectedFiles.length === 0) {
+      toast({
+        title: 'No files selected',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    uploadMutation.mutate(selectedFiles);
+  };
+
+  const handleClose = () => {
+    setSelectedFiles([]);
+    setPreviews([]);
+    setUploadProgress(0);
+    onClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Upload GIFs</DialogTitle>
-          <DialogDescription>
-            Share your favorite GIFs with the community. Upload up to 10 GIFs at once. Maximum file size is 50MB per file.
-          </DialogDescription>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="files"
-              render={({ field: { onChange, value, ...field } }) => (
-                <FormItem>
-                  <FormLabel>GIF Files</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="file"
-                      accept="image/gif"
-                      multiple
-                      onChange={(e) => {
-                        const files = e.target.files;
-                        if (files?.length) {
-                          const error = validateFiles(files);
-                          if (error) {
-                            toast({
-                              title: "Error",
-                              description: error,
-                              variant: "destructive"
-                            });
-                            return;
-                          }
-                          
-                          // Create previews
-                          const newPreviews = Array.from(files).map(file => URL.createObjectURL(file));
-                          setPreviews(newPreviews);
-                          onChange(files);
-                        }
-                      }}
-                      {...field}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
+    <Modal isOpen={isOpen} onClose={handleClose} size="xl">
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Upload GIFs</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody pb={6}>
+          <VStack spacing={4}>
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              colorScheme="blue"
+              width="100%"
+            >
+              Select GIFs
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/gif"
+              multiple
+              style={{ display: 'none' }}
             />
+            
+            {selectedFiles.length > 0 && (
+              <>
+                <FormControl display="flex" alignItems="center">
+                  <FormLabel mb="0">
+                    Make {selectedFiles.length > 1 ? 'these GIFs' : 'this GIF'} public
+                  </FormLabel>
+                  <Switch
+                    isChecked={isPublic}
+                    onChange={(e) => setIsPublic(e.target.checked)}
+                  />
+                </FormControl>
 
-            {previews.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                {previews.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <img
+                <Text>
+                  Selected {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''}
+                </Text>
+
+                <SimpleGrid columns={3} spacing={2} width="100%">
+                  {previews.map((preview, index) => (
+                    <Image
+                      key={index}
                       src={preview}
                       alt={`Preview ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg"
-                      onLoad={() => URL.revokeObjectURL(preview)}
+                      borderRadius="md"
                     />
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </SimpleGrid>
 
-            <Button 
-              type="submit" 
-              className="w-full"
-              disabled={mutation.isPending}
-            >
-              {mutation.isPending ? "Uploading..." : "Upload"}
-            </Button>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+                {uploadProgress > 0 && (
+                  <Progress
+                    value={uploadProgress}
+                    width="100%"
+                    borderRadius="md"
+                  />
+                )}
+
+                <Button
+                  onClick={handleUpload}
+                  colorScheme="green"
+                  width="100%"
+                  isLoading={uploadMutation.isPending}
+                >
+                  Upload
+                </Button>
+              </>
+            )}
+          </VStack>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   );
 }
