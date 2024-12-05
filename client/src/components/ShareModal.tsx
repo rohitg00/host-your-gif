@@ -4,24 +4,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Gif } from "@db/schema";
 
-interface ShareModalProps {
-  gif: Gif | null;
-  open: boolean;
-  onClose: () => void;
+interface GifType {
+  id: number;
+  filename: string;
+  title: string;
+  created_at: string;
 }
 
-export default function ShareModal({ gif, open, onClose }: ShareModalProps) {
+interface ShareModalProps {
+  gif: GifType | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function ShareModal({ gif, open, onOpenChange }: ShareModalProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("direct");
 
   if (!gif) return null;
 
+  const shareUrl = `${window.location.origin}/uploads/${gif.filename}`;
+
   const shareFormats = {
-    direct: gif.shareUrl,
-    html: `<img src="${gif.shareUrl}" alt="${gif.title}" />`,
-    markdown: `![${gif.title}](${gif.shareUrl})`,
+    direct: shareUrl,
+    html: `<img src="${shareUrl}" alt="${gif.title}" />`,
+    markdown: `![${gif.title}](${shareUrl})`,
   };
 
   const copyToClipboard = async (text: string) => {
@@ -41,40 +49,33 @@ export default function ShareModal({ gif, open, onClose }: ShareModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Share GIF</DialogTitle>
           <DialogDescription>
-            Copy the link or embed code to share this GIF anywhere.
+            Share your GIF using any of these formats
           </DialogDescription>
         </DialogHeader>
-
-        <div className="flex flex-col space-y-4">
-          <img
-            src={gif.filepath}
-            alt={gif.title}
-            className="w-full rounded-lg"
-          />
-
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="space-y-4">
+          <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="direct">Direct Link</TabsTrigger>
               <TabsTrigger value="html">HTML</TabsTrigger>
               <TabsTrigger value="markdown">Markdown</TabsTrigger>
             </TabsList>
-
-            {Object.entries(shareFormats).map(([format, code]) => (
-              <TabsContent key={format} value={format}>
-                <div className="flex gap-2">
+            {Object.entries(shareFormats).map(([format, value]) => (
+              <TabsContent key={format} value={format} className="space-y-4">
+                <div className="flex space-x-2">
                   <Input
-                    value={code}
                     readOnly
+                    value={value}
                     className="font-mono text-sm"
                   />
                   <Button
-                    variant="outline"
-                    onClick={() => copyToClipboard(code)}
+                    type="submit"
+                    onClick={() => copyToClipboard(value)}
+                    className="shrink-0"
                   >
                     Copy
                   </Button>

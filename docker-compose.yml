@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/hostyourgif?sslmode=disable
+      - VITE_API_URL=http://localhost:3000
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - postgres
+    networks:
+      - host-your-gif-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "postgres", "-p", "5432", "-U", "postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=hostyourgif
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - host-your-gif-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  uploads_data:
+
+networks:
+  host-your-gif-network:
+    driver: bridge

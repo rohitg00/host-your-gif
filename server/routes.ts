@@ -5,8 +5,8 @@ import path from "path";
 import fs from "fs";
 import { db } from "../db";
 
-// Ensure uploads directory exists
-const uploadsDir = "./uploads";
+// Ensure uploads directory exists with absolute path
+const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
@@ -14,7 +14,7 @@ import { gifs } from "@db/schema";
 import { eq, like } from "drizzle-orm";
 
 const storage = multer.diskStorage({
-  destination: "./uploads",
+  destination: uploadsDir,
   filename: (req: Express.Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   }
@@ -23,7 +23,8 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+    files: 10 // Maximum 10 files
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype !== "image/gif") {
@@ -35,23 +36,29 @@ const upload = multer({
 });
 
 export function registerRoutes(app: Express) {
-  // Upload GIF
-  app.post("/api/upload", upload.single("gif"), async (req, res) => {
+  // Upload GIF(s)
+  app.post("/api/upload", upload.array("gif", 10), async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
       }
 
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const gif = await db.insert(gifs).values({
-        title: req.body.title || req.file.originalname,
-        filename: req.file.filename,
-        filepath: `${baseUrl}/uploads/${req.file.filename}`,
-        shareUrl: `${baseUrl}/g/${req.file.filename}`
-      }).returning();
+      const results = await Promise.all(
+        req.files.map(async (file) => {
+          const gif = await db.insert(gifs).values({
+            title: file.originalname,
+            filename: file.filename,
+            filepath: `${baseUrl}/uploads/${file.filename}`,
+            shareUrl: `${baseUrl}/g/${file.filename}`
+          }).returning();
+          return gif[0];
+        })
+      );
 
-      res.json(gif[0]);
+      res.json(results);
     } catch (error) {
+      console.error('Upload error:', error);
       res.status(500).json({ error: "Upload failed" });
     }
   });
@@ -67,6 +74,7 @@ export function registerRoutes(app: Express) {
       const results = await query.orderBy(gifs.createdAt);
       res.json(results);
     } catch (error) {
+      console.error('Get GIFs error:', error);
       res.status(500).json({ error: "Failed to fetch GIFs" });
     }
   });
@@ -80,6 +88,7 @@ export function registerRoutes(app: Express) {
       }
       res.json(gif[0]);
     } catch (error) {
+      console.error('Get GIF error:', error);
       res.status(500).json({ error: "Failed to fetch GIF" });
     }
   });

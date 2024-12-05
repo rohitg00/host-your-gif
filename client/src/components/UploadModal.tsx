@@ -9,70 +9,81 @@ import { useToast } from "@/hooks/use-toast";
 import { uploadGif } from "../lib/api";
 
 interface UploadForm {
-  title: string;
-  file: FileList;
+  files: FileList;
 }
 
 interface UploadModalProps {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
 }
 
-export default function UploadModal({ open, onClose }: UploadModalProps) {
+export default function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<string[]>([]);
   const form = useForm<UploadForm>();
 
-  const validateFile = (file: File): string | null => {
-    if (!file.type.startsWith('image/gif')) {
-      return 'Please upload a GIF file';
+  const validateFiles = (files: FileList): string | null => {
+    if (files.length > 10) {
+      return 'Maximum 10 files can be uploaded at once';
     }
-    if (file.size > 10 * 1024 * 1024) {
-      return 'File size must be less than 10MB';
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/gif')) {
+        return 'Please upload only GIF files';
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        return 'Each file must be less than 50MB';
+      }
     }
     return null;
   };
 
   const mutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      return uploadGif(data);
+    mutationFn: async (data: FormData[]) => {
+      const results = await Promise.all(data.map(formData => uploadGif(formData)));
+      return results;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gifs"] });
       toast({
         title: "Success",
-        description: "GIF uploaded successfully",
+        description: "GIFs uploaded successfully",
       });
-      onClose();
+      onOpenChange(false);
       form.reset();
-      setPreviewUrl(null);
+      setPreviews([]);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to upload GIF",
+        description: "Failed to upload GIFs",
         variant: "destructive",
       });
     },
   });
 
-  const onSubmit = (data: UploadForm) => {
-    const formData = new FormData();
-    if (data.file?.[0]) {
-      formData.append("gif", data.file[0]);
-      formData.append("title", data.title || data.file[0].name);
-      mutation.mutate(formData);
-    }
+  const onSubmit = async (data: UploadForm) => {
+    if (!data.files?.length) return;
+
+    const formDataArray = Array.from(data.files).map(file => {
+      const formData = new FormData();
+      formData.append("gif", file);
+      formData.append("title", file.name);
+      return formData;
+    });
+
+    mutation.mutate(formDataArray);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Upload GIF</DialogTitle>
+          <DialogTitle>Upload GIFs</DialogTitle>
           <DialogDescription>
-            Share your favorite GIF with the community. Maximum file size is 10MB.
+            Share your favorite GIFs with the community. Upload up to 10 GIFs at once. Maximum file size is 50MB per file.
           </DialogDescription>
         </DialogHeader>
 
@@ -80,31 +91,19 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter a title..." {...field} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="file"
+              name="files"
               render={({ field: { onChange, value, ...field } }) => (
                 <FormItem>
-                  <FormLabel>GIF File</FormLabel>
+                  <FormLabel>GIF Files</FormLabel>
                   <FormControl>
                     <Input
                       type="file"
                       accept="image/gif"
+                      multiple
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const error = validateFile(file);
+                        const files = e.target.files;
+                        if (files?.length) {
+                          const error = validateFiles(files);
                           if (error) {
                             toast({
                               title: "Error",
@@ -113,8 +112,11 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
                             });
                             return;
                           }
-                          setPreviewUrl(URL.createObjectURL(file));
-                          onChange(e.target.files);
+                          
+                          // Create previews
+                          const newPreviews = Array.from(files).map(file => URL.createObjectURL(file));
+                          setPreviews(newPreviews);
+                          onChange(files);
                         }
                       }}
                       {...field}
@@ -124,14 +126,18 @@ export default function UploadModal({ open, onClose }: UploadModalProps) {
               )}
             />
 
-            {previewUrl && (
-              <div className="mt-4">
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="w-full rounded-lg"
-                  onLoad={() => URL.revokeObjectURL(previewUrl)}
-                />
+            {previews.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                {previews.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={preview}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg"
+                      onLoad={() => URL.revokeObjectURL(preview)}
+                    />
+                  </div>
+                ))}
               </div>
             )}
 

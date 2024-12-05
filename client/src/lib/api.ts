@@ -1,4 +1,9 @@
-import type { Gif } from "@db/schema";
+interface Gif {
+  id: number;
+  filename: string;
+  title: string;
+  created_at: string;
+}
 
 export async function getAllGifs(search?: string): Promise<Gif[]> {
   const params = new URLSearchParams();
