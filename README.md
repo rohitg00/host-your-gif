@@ -5,7 +5,7 @@ Host your GIF is a feature-rich, modern GIF hosting and sharing platform built w
 ## Features
 
 ### Core Features
-- 🎯 Single GIF upload with preview
+- 🎯 Bulk GIF upload with preview
 - 🔄 Real-time upload progress
 - 🔍 Search through your GIF collection
 - 📋 Copy-to-clipboard sharing
