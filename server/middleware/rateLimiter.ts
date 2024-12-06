@@ -7,7 +7,7 @@ export const apiLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  trustProxy: true, // Trust X-Forwarded-For header
+  skipFailedRequests: true, // Don't count failed requests
 });
 
 // More strict rate limiter for auth routes
@@ -17,5 +17,5 @@ export const authLimiter = rateLimit({
   message: { error: 'Too many login attempts, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  trustProxy: true, // Trust X-Forwarded-For header
+  skipFailedRequests: true, // Don't count failed requests
 });

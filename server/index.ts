@@ -16,6 +16,10 @@ function log(message: string) {
 }
 
 const app = express();
+
+// Trust proxy - required when behind a reverse proxy like Sevalla
+app.set('trust proxy', true);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static('uploads'));
