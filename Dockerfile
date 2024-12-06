@@ -31,6 +31,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # Copy built artifacts and necessary files
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
+COPY --from=builder /app/db ./db
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
