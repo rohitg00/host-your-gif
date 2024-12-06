@@ -3,13 +3,9 @@ FROM node:18-alpine as builder
 
 WORKDIR /app
 
-# Copy package files and TypeScript configs
+# Copy package files
 COPY package*.json ./
-COPY tsconfig.json ./
 COPY client/package*.json ./client/
-COPY client/tsconfig*.json ./client/
-COPY server/tsconfig.json ./server/
-COPY db/tsconfig.json ./db/
 
 # Install dependencies
 RUN npm install
@@ -18,7 +14,7 @@ RUN cd client && npm install
 # Copy source code
 COPY . .
 
-# Build everything
+# Build client and server
 RUN npm run build
 
 # Production stage
@@ -26,26 +22,21 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-# Copy built artifacts and necessary files
+# Copy built assets and dependencies
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
-COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/start.sh ./start.sh
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/db/migrations ./db/migrations
 
-# Set proper permissions
-RUN mkdir -p uploads && \
-    chown -R appuser:appgroup /app && \
-    chmod +x /app/start.sh
+# Create uploads directory and set permissions
+RUN mkdir -p uploads && chown -R node:node uploads
 
-# Switch to non-root user
-USER appuser
+# Use non-root user
+USER node
 
-# Expose port
-EXPOSE 3000
+# Add migration script
+COPY --chown=node:node scripts/start.sh ./
+RUN chmod +x start.sh
 
-# Start the application using the startup script
-CMD ["sh", "./start.sh"]
+CMD ["./start.sh"]

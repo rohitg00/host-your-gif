@@ -2,28 +2,23 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgres://urial:uQ6\:qS5\]oD0\$hC1\$@free-turquoise-wren-0v6xs-postgresql.free-turquoise-wren-0v6xs.svc.cluster.local:5432/free-turquoise-wren
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://urial@free-turquoise-wren-0v6xs-postgresql.free-turquoise-wren-0v6xs.svc.cluster.local:5432/free-turquoise-wren
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=3000
-      - POSTGRES_USER=urial
-      - POSTGRES_PASSWORD=uQ6\:qS5\]oD0\$hC1\$
-      - POSTGRES_DB=free-turquoise-wren
-      - POSTGRES_HOST=free-turquoise-wren-0v6xs-postgresql.free-turquoise-wren-0v6xs.svc.cluster.local
-      - POSTGRES_PORT=5432
-      - JWT_SECRET=3gVtqZpFtj8rew+PNefXJPtCdlNWm6lCXZykZmYCXR4=
     volumes:
       - uploads:/app/uploads
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   uploads:
-
-networks:
-  host-your-gif-network:
-    driver: bridge

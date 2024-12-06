@@ -1,5 +1,4 @@
 import rateLimit from 'express-rate-limit';
-import { Request } from 'express';
 
 // General API rate limiter
 export const apiLimiter = rateLimit({
@@ -8,14 +7,7 @@ export const apiLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skipFailedRequests: true, // Don't count failed requests
-  trustProxy: false, // Disable trust proxy for rate limiter
-  keyGenerator: (req: Request): string => {
-    // Use X-Forwarded-For header if available, otherwise use IP
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const ip = (typeof forwardedFor === 'string' ? forwardedFor : forwardedFor?.[0]) || req.ip;
-    return ip;
-  },
+  trustProxy: true // Add trust proxy for Sevalla deployment
 });
 
 // More strict rate limiter for auth routes
@@ -25,12 +17,5 @@ export const authLimiter = rateLimit({
   message: { error: 'Too many login attempts, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skipFailedRequests: true, // Don't count failed requests
-  trustProxy: false, // Disable trust proxy for rate limiter
-  keyGenerator: (req: Request): string => {
-    // Use X-Forwarded-For header if available, otherwise use IP
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const ip = (typeof forwardedFor === 'string' ? forwardedFor : forwardedFor?.[0]) || req.ip;
-    return ip;
-  },
+  trustProxy: true // Add trust proxy for Sevalla deployment
 });
