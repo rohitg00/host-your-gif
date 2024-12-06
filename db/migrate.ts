@@ -1,8 +1,8 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import 'dotenv/config';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 
 const runMigration = async () => {
   const connectionString = process.env.DATABASE_URL;
@@ -16,11 +16,11 @@ const runMigration = async () => {
   console.log('Running migrations...');
   
   try {
-    // Read and execute the SQL file directly
-    const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
-    const migrationSQL = await fs.readFile(migrationPath, 'utf8');
+    // Use drizzle-orm's migrate function
+    await migrate(db, {
+      migrationsFolder: path.join(process.cwd(), 'db', 'migrations'),
+    });
     
-    await sql.unsafe(migrationSQL);
     console.log('Migrations completed successfully');
   } catch (error) {
     console.error('Migration failed:', error);
@@ -29,6 +29,6 @@ const runMigration = async () => {
 
   await sql.end();
   process.exit(0);
-};
+}
 
 runMigration().catch(console.error);
