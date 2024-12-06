@@ -8,6 +8,11 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipFailedRequests: true, // Don't count failed requests
+  trustProxy: false, // Disable trust proxy for rate limiter
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For header if available, otherwise use IP
+    return req.headers['x-forwarded-for'] as string || req.ip;
+  },
 });
 
 // More strict rate limiter for auth routes
@@ -18,4 +23,9 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipFailedRequests: true, // Don't count failed requests
+  trustProxy: false, // Disable trust proxy for rate limiter
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For header if available, otherwise use IP
+    return req.headers['x-forwarded-for'] as string || req.ip;
+  },
 });

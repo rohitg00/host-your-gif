@@ -34,9 +34,11 @@ COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/db ./db
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/start.sh ./start.sh
 
 # Create uploads directory with proper permissions
-RUN mkdir -p uploads && chown -R appuser:appgroup /app
+RUN mkdir -p uploads && chown -R appuser:appgroup /app && \
+    chmod +x /app/start.sh
 
 # Switch to non-root user
 USER appuser
@@ -44,5 +46,5 @@ USER appuser
 # Expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application using the startup script
+CMD ["./start.sh"]

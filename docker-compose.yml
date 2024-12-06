@@ -20,8 +20,6 @@ services:
     volumes:
       - uploads:/app/uploads
     restart: unless-stopped
-    command: >
-      sh -c "npm run db:migrate && npm start"
 
 volumes:
   uploads:
