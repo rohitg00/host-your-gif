@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { Request } from 'express';
 
 // General API rate limiter
 export const apiLimiter = rateLimit({
@@ -9,9 +10,11 @@ export const apiLimiter = rateLimit({
   legacyHeaders: false,
   skipFailedRequests: true, // Don't count failed requests
   trustProxy: false, // Disable trust proxy for rate limiter
-  keyGenerator: (req) => {
+  keyGenerator: (req: Request): string => {
     // Use X-Forwarded-For header if available, otherwise use IP
-    return req.headers['x-forwarded-for'] as string || req.ip;
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip = (typeof forwardedFor === 'string' ? forwardedFor : forwardedFor?.[0]) || req.ip;
+    return ip;
   },
 });
 
@@ -24,8 +27,10 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   skipFailedRequests: true, // Don't count failed requests
   trustProxy: false, // Disable trust proxy for rate limiter
-  keyGenerator: (req) => {
+  keyGenerator: (req: Request): string => {
     // Use X-Forwarded-For header if available, otherwise use IP
-    return req.headers['x-forwarded-for'] as string || req.ip;
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip = (typeof forwardedFor === 'string' ? forwardedFor : forwardedFor?.[0]) || req.ip;
+    return ip;
   },
 });
