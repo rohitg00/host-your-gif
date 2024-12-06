@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
 import path from "path";
+import { initDb } from '../db';
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -16,13 +17,14 @@ function log(message: string) {
 }
 
 const app = express();
-
-// Trust proxy - required when behind a reverse proxy like Sevalla
-app.set('trust proxy', true);
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static('uploads'));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -33,15 +35,15 @@ app.use((req, res, next) => {
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
     capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+    return originalResJson.call(this, bodyJson, ...args);
   };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` - ${JSON.stringify(capturedJsonResponse)}`;
+      if (capturedJsonResponse?.error) {
+        logLine += ` - Error: ${capturedJsonResponse.error}`;
       }
       log(logLine);
     }
@@ -50,36 +52,59 @@ app.use((req, res, next) => {
   next();
 });
 
-// Register API routes
-registerRoutes(app);
+// Global error handler
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
-const server = createServer(app);
-
-// Setup static files and start server
 async function startServer() {
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  try {
+    // Initialize database connection
+    await initDb();
+    log('Database connection established');
 
-  if (process.env.NODE_ENV === 'development') {
-    const { setupVite } = await import('./vite');
-    await setupVite(app, server);
-  } else {
-    // Serve static files in production
-    app.use(express.static(path.join(process.cwd(), 'dist', 'public')));
-    
-    // Serve index.html for all non-API routes
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api')) {
-        res.sendFile(path.join(process.cwd(), 'dist', 'public', 'index.html'));
-      }
+    // Register routes after DB is initialized
+    registerRoutes(app);
+
+    const port = process.env.PORT || 3000;
+    const server = createServer(app);
+
+    if (process.env.NODE_ENV === 'development') {
+      const { setupVite } = await import('./vite');
+      await setupVite(app, server);
+    } else {
+      // Serve static files in production
+      app.use(express.static(path.join(process.cwd(), 'dist', 'public')));
+      
+      // Serve index.html for all non-API routes
+      app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+          res.sendFile(path.join(process.cwd(), 'dist', 'public', 'index.html'));
+        }
+      });
+    }
+
+    server.listen(port, () => {
+      log(`Server running in ${process.env.NODE_ENV} mode on port ${port}`);
     });
-  }
 
-  server.listen(port, () => {
-    log(`Server running in ${process.env.NODE_ENV} mode on port ${port}`);
-  });
+    // Graceful shutdown
+    const shutdown = async () => {
+      log('Shutting down server...');
+      server.close(() => {
+        log('Server stopped');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+startServer();
