@@ -8,46 +8,23 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - DATABASE_URL=postgres://urial:uQ6\:qS5\]oD0\$hC1\$@free-turquoise-wren-0v6xs-postgresql.free-turquoise-wren-0v6xs.svc.cluster.local:5432/free-turquoise-wren
       - NODE_ENV=production
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/hostyourgif?sslmode=disable
-      - VITE_API_URL=http://localhost:3000
+      - PORT=3000
+      - POSTGRES_USER=urial
+      - POSTGRES_PASSWORD=uQ6\:qS5\]oD0\$hC1\$
+      - POSTGRES_DB=free-turquoise-wren
+      - POSTGRES_HOST=free-turquoise-wren-0v6xs-postgresql.free-turquoise-wren-0v6xs.svc.cluster.local
+      - POSTGRES_PORT=5432
+      - JWT_SECRET=3gVtqZpFtj8rew+PNefXJPtCdlNWm6lCXZykZmYCXR4=
     volumes:
-      - uploads_data:/app/uploads
-    depends_on:
-      - postgres
-    networks:
-      - host-your-gif-network
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "postgres", "-p", "5432", "-U", "postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
+      - uploads:/app/uploads
     restart: unless-stopped
-
-  postgres:
-    image: postgres:15
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=hostyourgif
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - host-your-gif-network
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
+    command: >
+      sh -c "npm run db:migrate && npm start"
 
 volumes:
-  postgres-data:
-  uploads_data:
+  uploads:
 
 networks:
   host-your-gif-network:
