@@ -1,50 +1,47 @@
-# Stage 1: Build
-FROM node:20-slim AS builder
+# Build stage
+FROM node:18-alpine as builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY client/package*.json ./client/
 
 # Install dependencies
 RUN npm install
+RUN cd client && npm install
 
-# Copy source files
+# Copy source code
 COPY . .
 
-# Build frontend and backend
+# Build client
+RUN cd client && npm run build
+
+# Build server
 RUN npm run build
 
-# Stage 2: Production
-FROM node:20-slim
+# Production stage
+FROM node:18-alpine
 
 WORKDIR /app
 
-# Install PostgreSQL client for health checks
-RUN apt-get update && \
-    apt-get install -y postgresql-client && \
-    rm -rf /var/lib/apt/lists/*
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy package files and install production dependencies
-COPY package*.json ./
-RUN npm ci
-
-# Copy built assets from builder
+# Copy built artifacts and necessary files
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/uploads ./uploads
-COPY --from=builder /app/db/migrations ./db/migrations
-COPY --from=builder /app/db/migrations/meta ./db/migrations/meta
+COPY --from=builder /app/client/dist ./client/dist
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 
-# Create and set permissions for uploads directory
-RUN mkdir -p uploads && chmod 777 uploads
+# Create uploads directory with proper permissions
+RUN mkdir -p uploads && chown -R appuser:appgroup /app
 
-# Set production environment
-ENV NODE_ENV=production
+# Switch to non-root user
+USER appuser
 
-# Copy startup script
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Expose port
+EXPOSE 3000
 
 # Start the application
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "dist/index.js"]
+CMD ["npm", "start"]
