@@ -29,7 +29,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --production
 
-# Copy built files from builder
+# Copy built files and migrations
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/db/migrations ./db/migrations
