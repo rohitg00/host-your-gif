@@ -14,7 +14,10 @@ RUN cd client && npm install
 # Copy source code
 COPY . .
 
-# Build client and server
+# Build client first
+RUN npm run build:client
+
+# Build server
 RUN npm run build
 
 # Production stage
