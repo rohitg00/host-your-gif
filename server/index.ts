@@ -3,7 +3,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
 import path from "path";
-import { runMigration } from '../db/migrate';
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -54,21 +53,11 @@ app.use((req, res, next) => {
 // Register API routes
 registerRoutes(app);
 
+const server = createServer(app);
+
 // Setup static files and start server
 async function startServer() {
-  const port = process.env.PORT || 8080;
-  
-  try {
-    // Run migrations before starting the server
-    log('Running database migrations...');
-    await runMigration();
-    log('Database migrations completed successfully');
-  } catch (error) {
-    console.error('Failed to run migrations:', error);
-    process.exit(1);
-  }
-
-  const server = createServer(app);
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   if (process.env.NODE_ENV === 'development') {
     const { setupVite } = await import('./vite');
@@ -86,10 +75,8 @@ async function startServer() {
   }
 
   server.listen(port, () => {
-    log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${port}`);
+    log(`Server running in ${process.env.NODE_ENV} mode on port ${port}`);
   });
-
-  return server;
 }
 
 startServer().catch((err) => {
