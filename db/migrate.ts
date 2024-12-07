@@ -27,9 +27,8 @@ export const runMigration = async () => {
       });
 
       console.log('Running migrations...');
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = path.dirname(__filename);
-      const migrationPath = path.join(__dirname, '..', 'migrations', '0000_initial.sql');
+      const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
+      console.log('Looking for migration file at:', migrationPath);
       const migrationSQL = await fs.readFile(migrationPath, 'utf8');
       
       await sql.unsafe(migrationSQL);
