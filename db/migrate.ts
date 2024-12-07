@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import 'dotenv/config';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -26,7 +27,9 @@ export const runMigration = async () => {
       });
 
       console.log('Running migrations...');
-      const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      const migrationPath = path.join(__dirname, '..', 'migrations', '0000_initial.sql');
       const migrationSQL = await fs.readFile(migrationPath, 'utf8');
       
       await sql.unsafe(migrationSQL);
@@ -48,8 +51,8 @@ export const runMigration = async () => {
   throw new Error(`All migration attempts failed. Last error: ${lastError?.message || 'Unknown error'}`);
 };
 
-// Only run migrations directly if this file is executed directly
-if (require.main === module) {
+// Run migrations if this is the main module
+if (import.meta.url === `file://${process.argv[1]}`) {
   runMigration().catch((err) => {
     console.error('Fatal migration error:', err);
     process.exit(1);
