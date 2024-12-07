@@ -21,9 +21,11 @@ export const runMigration = async () => {
       console.log('Attempting to connect to database...');
       const sql = postgres(connectionString, { 
         max: 1,
-        connect_timeout: 10,
-        idle_timeout: 10,
-        ssl: process.env.NODE_ENV === 'production'
+        connect_timeout: 30,
+        idle_timeout: 30,
+        ssl: process.env.NODE_ENV === 'production' ? {
+          rejectUnauthorized: false // Required for some cloud providers
+        } : false
       });
 
       console.log('Running migrations...');

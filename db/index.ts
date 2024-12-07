@@ -8,6 +8,13 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const client = postgres(process.env.DATABASE_URL);
+const client = postgres(process.env.DATABASE_URL, {
+  connect_timeout: 30,
+  idle_timeout: 30,
+  max: 10,
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false // Required for some cloud providers
+  } : false
+});
 
 export const db = drizzle(client, { schema });
