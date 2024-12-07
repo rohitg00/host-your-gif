@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
 import path from "path";
+import { configureProxy } from './config/proxy';
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -16,6 +17,10 @@ function log(message: string) {
 }
 
 const app = express();
+
+// Configure proxy settings for Sevalla
+configureProxy(app);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static('uploads'));
