@@ -40,8 +40,12 @@ RUN mkdir -p uploads && chown -R node:node /app
 # Use non-root user
 USER node
 
-# Expose port
+# Expose port 3000 (as specified in Kinsta docs)
 EXPOSE 3000
+
+# Set environment variables
+ENV PORT=3000
+ENV NODE_ENV=production
 
 # Run migrations and start the app
 CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]
