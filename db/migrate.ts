@@ -4,48 +4,31 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import 'dotenv/config';
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 const runMigration = async () => {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  let retries = 5;
-  while (retries > 0) {
-    try {
-      console.log('Attempting to connect to database...');
-      const sql = postgres(connectionString, { 
-        max: 1,
-        connect_timeout: 10,
-        idle_timeout: 10
-      });
+  const sql = postgres(connectionString, { max: 1 });
+  const db = drizzle(sql);
 
-      console.log('Running migrations...');
-      const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
-      const migrationSQL = await fs.readFile(migrationPath, 'utf8');
-      
-      await sql.unsafe(migrationSQL);
-      console.log('Migrations completed successfully');
-      await sql.end();
-      return;
-    } catch (error) {
-      console.error(`Migration attempt failed (${retries} retries left):`, error);
-      retries--;
-      if (retries > 0) {
-        console.log('Waiting 5 seconds before retrying...');
-        await sleep(5000);
-      }
-    }
+  console.log('Running migrations...');
+  
+  try {
+    // Read and execute the SQL file directly
+    const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
+    const migrationSQL = await fs.readFile(migrationPath, 'utf8');
+    
+    await sql.unsafe(migrationSQL);
+    console.log('Migrations completed successfully');
+  } catch (error) {
+    console.error('Migration failed:', error);
+    process.exit(1);
   }
 
-  console.error('All migration attempts failed');
-  process.exit(1);
+  await sql.end();
+  process.exit(0);
 };
 
-// Run migrations with error handling
-runMigration().catch((err) => {
-  console.error('Fatal migration error:', err);
-  process.exit(1);
-});
+runMigration().catch(console.error);
