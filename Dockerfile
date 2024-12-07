@@ -1,47 +1,46 @@
 # Build stage
-FROM node:18-alpine as builder
+FROM node:20-slim as builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 COPY client/package*.json ./client/
+COPY server/package*.json ./server/
 
 # Install dependencies
 RUN npm install
 RUN cd client && npm install
+RUN cd server && npm install
 
 # Copy source code
 COPY . .
 
-# Build client
-RUN cd client && npm run build
-
-# Build server
+# Build client and server
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine
+FROM node:20-slim as runner
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm install --production
 
-# Copy built artifacts and necessary files
+# Copy built files from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/db/migrations ./db/migrations
 
-# Create uploads directory with proper permissions
-RUN mkdir -p uploads && chown -R appuser:appgroup /app
+# Create uploads directory and set permissions
+RUN mkdir -p uploads && chown -R node:node /app
 
-# Switch to non-root user
-USER appuser
+# Use non-root user
+USER node
 
 # Expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# Run migrations and start the app
+CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]

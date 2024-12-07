@@ -4,31 +4,54 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import 'dotenv/config';
 
-const runMigration = async () => {
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const runMigration = async () => {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  const sql = postgres(connectionString, { max: 1 });
-  const db = drizzle(sql);
+  let retries = 5;
+  let lastError: any;
 
-  console.log('Running migrations...');
-  
-  try {
-    // Read and execute the SQL file directly
-    const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
-    const migrationSQL = await fs.readFile(migrationPath, 'utf8');
-    
-    await sql.unsafe(migrationSQL);
-    console.log('Migrations completed successfully');
-  } catch (error) {
-    console.error('Migration failed:', error);
-    process.exit(1);
+  while (retries > 0) {
+    try {
+      console.log('Attempting to connect to database...');
+      const sql = postgres(connectionString, { 
+        max: 1,
+        connect_timeout: 10,
+        idle_timeout: 10,
+        ssl: process.env.NODE_ENV === 'production'
+      });
+
+      console.log('Running migrations...');
+      const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
+      const migrationSQL = await fs.readFile(migrationPath, 'utf8');
+      
+      await sql.unsafe(migrationSQL);
+      console.log('Migrations completed successfully');
+      await sql.end();
+      return;
+    } catch (error) {
+      lastError = error;
+      console.error(`Migration attempt failed (${retries} retries left):`, error);
+      retries--;
+      if (retries > 0) {
+        const waitTime = (6 - retries) * 5000; // Increasing wait time with each retry
+        console.log(`Waiting ${waitTime/1000} seconds before retrying...`);
+        await sleep(waitTime);
+      }
+    }
   }
 
-  await sql.end();
-  process.exit(0);
+  throw new Error(`All migration attempts failed. Last error: ${lastError?.message || 'Unknown error'}`);
 };
 
-runMigration().catch(console.error);
+// Only run migrations directly if this file is executed directly
+if (require.main === module) {
+  runMigration().catch((err) => {
+    console.error('Fatal migration error:', err);
+    process.exit(1);
+  });
+}

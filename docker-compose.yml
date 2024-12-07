@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -12,7 +10,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - POSTGRES_USER=urial
-      - POSTGRES_PASSWORD=uQ6\:qS5\]oD0\$hC1\$
+      - POSTGRES_PASSWORD=uQ6:qS5]oD0$hC1$
       - POSTGRES_DB=free-turquoise-wren
       - POSTGRES_HOST=europe-west1-001.proxy.kinsta.app
       - POSTGRES_PORT=30463
@@ -20,8 +18,6 @@ services:
     volumes:
       - uploads:/app/uploads
     restart: unless-stopped
-    command: >
-      sh -c "npm run db:migrate && npm start"
 
 volumes:
   uploads:
