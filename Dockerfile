@@ -25,6 +25,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install netcat for database connection check
+RUN apk add --no-cache netcat-openbsd
+
 # Create non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
@@ -33,9 +36,14 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/db ./db
 
 # Create uploads directory with proper permissions
 RUN mkdir -p uploads && chown -R appuser:appgroup /app
+
+# Create startup script
+COPY --chown=appuser:appgroup docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Switch to non-root user
 USER appuser
@@ -43,5 +51,5 @@ USER appuser
 # Expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application using the entrypoint script
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

@@ -1,15 +1,17 @@
 #!/bin/sh
 set -e
 
-# Wait for PostgreSQL to be ready
-until pg_isready -h postgres -p 5432 -U postgres; do
-  echo "Waiting for PostgreSQL to be ready..."
-  sleep 2
+# Wait for database to be ready
+echo "Waiting for database to be ready..."
+while ! nc -z $POSTGRES_HOST $POSTGRES_PORT; do
+  sleep 1
 done
+echo "Database is ready!"
 
 # Run database migrations
 echo "Running database migrations..."
-node dist/db/migrate.js
+npm run db:migrate
 
 # Start the application
-exec "$@"
+echo "Starting the application..."
+exec npm start
