@@ -36,14 +36,18 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/db ./db
+
+# Ensure migrations directory exists and copy migrations
+RUN mkdir -p /app/db/migrations
+COPY --from=builder /app/db/migrations/*.sql /app/db/migrations/
+COPY --from=builder /app/db/migrate.* /app/db/
 
 # Create uploads directory with proper permissions
 RUN mkdir -p uploads && chown -R appuser:appgroup /app
 
 # Create startup script
-COPY --chown=appuser:appgroup docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
+COPY docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh && chown appuser:appgroup /app/docker-entrypoint.sh
 
 # Switch to non-root user
 USER appuser
@@ -51,5 +55,5 @@ USER appuser
 # Expose port
 EXPOSE 3000
 
-# Start the application using the entrypoint script
+# Set entrypoint
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

@@ -8,16 +8,25 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgres://urial:uQ6%3AqS5%5DoD0%24hC1%24@europe-west1-001.proxy.kinsta.app:30463/free-turquoise-wren
+      - DATABASE_URL=postgres://rohit:rohitgiftrove123@europe-west1-001.proxy.kinsta.app:30157/rohit-db?sslmode=prefer
       - NODE_ENV=production
       - PORT=3000
-      - POSTGRES_USER=urial
-      - POSTGRES_PASSWORD="uQ6:qS5]oD0$hC1$"
-      - POSTGRES_DB=free-turquoise-wren
+      - POSTGRES_USER=rohit
+      - POSTGRES_PASSWORD=rohitgiftrove123
+      - POSTGRES_DB=rohit-db
       - POSTGRES_HOST=europe-west1-001.proxy.kinsta.app
-      - POSTGRES_PORT=30463
+      - POSTGRES_PORT=30157
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
     volumes:
       - uploads:/app/uploads
+    command: >
+      sh -c "while ! nc -z $POSTGRES_HOST $POSTGRES_PORT; do
+               echo 'Waiting for database to be ready...';
+               sleep 2;
+             done &&
+             npm run build &&
+             npm run db:migrate &&
+             npm start"
     restart: unless-stopped
 
 volumes:
