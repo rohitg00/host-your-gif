@@ -11,27 +11,37 @@ const runMigration = async () => {
   }
 
   console.log('Running migrations...');
+  console.log('Using connection string:', connectionString);
   
   try {
-    const sql = postgres(connectionString, { 
+    const sql = postgres(connectionString, {
       max: 1,
       ssl: {
         rejectUnauthorized: false
-      }
+      },
+      idle_timeout: 20,
+      connect_timeout: 10,
+      keepalive: true
     });
     
     const db = drizzle(sql);
 
     // Read and execute the SQL file directly
     const migrationPath = path.join(process.cwd(), 'db', 'migrations', '0000_initial.sql');
+    console.log('Reading migration file from:', migrationPath);
     const migrationSQL = await fs.readFile(migrationPath, 'utf8');
     
+    console.log('Executing migration SQL...');
     await sql.unsafe(migrationSQL);
     
     console.log('Migration completed successfully');
     await sql.end();
   } catch (error) {
     console.error('Migration failed:', error);
+    if (error instanceof Error) {
+      console.error('Error details:', error.message);
+      console.error('Stack trace:', error.stack);
+    }
     process.exit(1);
   }
 };
