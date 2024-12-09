@@ -21,7 +21,8 @@ const runMigration = async () => {
       },
       idle_timeout: 20,
       connect_timeout: 10,
-      keepalive: true
+      keepalive: true,
+      application_name: 'giftrove-migrations'
     });
     
     const db = drizzle(sql);
