@@ -11,24 +11,33 @@ ARG POSTGRES_HOST
 ARG POSTGRES_PORT
 ARG NODE_TLS_REJECT_UNAUTHORIZED
 
+# Set environment variables for build stage
+ENV NODE_ENV=$NODE_ENV \
+    DATABASE_URL=$DATABASE_URL \
+    PORT=$PORT \
+    POSTGRES_USER=$POSTGRES_USER \
+    POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+    POSTGRES_DB=$POSTGRES_DB \
+    POSTGRES_HOST=$POSTGRES_HOST \
+    POSTGRES_PORT=$POSTGRES_PORT \
+    NODE_TLS_REJECT_UNAUTHORIZED=1
+
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 COPY client/package*.json ./client/
 
-# Install dependencies
-RUN npm install
-RUN cd client && npm install
+# Install dependencies using npm ci for faster, reliable builds
+RUN npm ci && \
+    cd client && npm ci
 
 # Copy source code
 COPY . .
 
-# Build client
-RUN cd client && npm run build
-
-# Build server
-RUN npm run build
+# Build client and server
+RUN cd client && npm run build && \
+    cd .. && npm run build
 
 # Production stage
 FROM node:18-alpine
@@ -43,29 +52,41 @@ ARG POSTGRES_HOST
 ARG POSTGRES_PORT
 ARG NODE_TLS_REJECT_UNAUTHORIZED
 
+# Set production environment variables
+ENV NODE_ENV=$NODE_ENV \
+    DATABASE_URL=$DATABASE_URL \
+    PORT=$PORT \
+    POSTGRES_USER=$POSTGRES_USER \
+    POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+    POSTGRES_DB=$POSTGRES_DB \
+    POSTGRES_HOST=$POSTGRES_HOST \
+    POSTGRES_PORT=$POSTGRES_PORT \
+    NODE_TLS_REJECT_UNAUTHORIZED=1
+
 WORKDIR /app
 
-# Install netcat for database connection check
-RUN apk add --no-cache netcat-openbsd
+# Install netcat and create non-root user
+RUN apk add --no-cache netcat-openbsd && \
+    addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Copy package files for production dependencies
+COPY --from=builder /app/package*.json ./
+RUN npm ci --only=production
 
 # Copy built artifacts and necessary files
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/client/dist ./client/dist
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+COPY --from=builder --chown=appuser:appgroup /app/client/dist ./client/dist
 
-# Ensure migrations directory exists and copy migrations
-RUN mkdir -p /app/db/migrations
-COPY --from=builder /app/db/migrations/*.sql /app/db/migrations/
-COPY --from=builder /app/db/migrate.* /app/db/
+# Create required directories with proper permissions
+RUN mkdir -p /app/db/migrations /app/uploads && \
+    chown -R appuser:appgroup /app
 
-# Create uploads directory with proper permissions
-RUN mkdir -p uploads && chown -R appuser:appgroup /app
+# Copy migrations with proper permissions
+COPY --from=builder --chown=appuser:appgroup /app/db/migrations/*.sql /app/db/migrations/
+COPY --from=builder --chown=appuser:appgroup /app/db/migrate.* /app/db/
 
-# Create startup script
+# Copy and configure entrypoint script
 COPY docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh && chown appuser:appgroup /app/docker-entrypoint.sh
 
@@ -73,7 +94,7 @@ RUN chmod +x /app/docker-entrypoint.sh && chown appuser:appgroup /app/docker-ent
 USER appuser
 
 # Expose port
-EXPOSE 3000
+EXPOSE $PORT
 
 # Set entrypoint
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
