@@ -1,22 +1,25 @@
 # Build stage
-FROM node:18-alpine as builder
+FROM node:18-alpine AS builder
 
+# Build arguments for non-sensitive data
 ARG NODE_ENV
-ARG DATABASE_URL
 ARG PORT
 ARG POSTGRES_USER
-ARG POSTGRES_PASSWORD
 ARG POSTGRES_DB
 ARG POSTGRES_HOST
 ARG POSTGRES_PORT
 ARG NODE_TLS_REJECT_UNAUTHORIZED
 
+# Mount secrets at build time
+RUN --mount=type=secret,id=db_password \
+    --mount=type=secret,id=db_url \
+    export POSTGRES_PASSWORD="$(cat /run/secrets/db_password)" && \
+    export DATABASE_URL="$(cat /run/secrets/db_url)"
+
 # Set environment variables for build stage
 ENV NODE_ENV=$NODE_ENV \
-    DATABASE_URL=$DATABASE_URL \
     PORT=$PORT \
     POSTGRES_USER=$POSTGRES_USER \
-    POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
     POSTGRES_DB=$POSTGRES_DB \
     POSTGRES_HOST=$POSTGRES_HOST \
     POSTGRES_PORT=$POSTGRES_PORT \
@@ -42,22 +45,25 @@ RUN cd client && npm run build && \
 # Production stage
 FROM node:18-alpine
 
+# Build arguments for non-sensitive data
 ARG NODE_ENV
-ARG DATABASE_URL
 ARG PORT
 ARG POSTGRES_USER
-ARG POSTGRES_PASSWORD
 ARG POSTGRES_DB
 ARG POSTGRES_HOST
 ARG POSTGRES_PORT
 ARG NODE_TLS_REJECT_UNAUTHORIZED
 
+# Mount secrets at runtime
+RUN --mount=type=secret,id=db_password \
+    --mount=type=secret,id=db_url \
+    export POSTGRES_PASSWORD="$(cat /run/secrets/db_password)" && \
+    export DATABASE_URL="$(cat /run/secrets/db_url)"
+
 # Set production environment variables
 ENV NODE_ENV=$NODE_ENV \
-    DATABASE_URL=$DATABASE_URL \
     PORT=$PORT \
     POSTGRES_USER=$POSTGRES_USER \
-    POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
     POSTGRES_DB=$POSTGRES_DB \
     POSTGRES_HOST=$POSTGRES_HOST \
     POSTGRES_PORT=$POSTGRES_PORT \
