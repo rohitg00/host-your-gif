@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -6,163 +6,167 @@ import {
   ModalHeader,
   ModalBody,
   ModalCloseButton,
+  Box,
+  Text,
+  Button,
+  useToast,
   Tabs,
   TabList,
   TabPanels,
   Tab,
   TabPanel,
   Input,
-  Button,
-  Box,
-  Image,
-  Code,
-  useToast,
-  useClipboard,
+  InputGroup,
+  InputRightElement,
   VStack,
-  Text,
+  Image,
+  useColorMode,
+  Flex,
+  Code,
 } from '@chakra-ui/react';
-
-interface GifType {
-  id: number;
-  filename: string;
-  title: string;
-  created_at: string;
-}
+import { FiCopy, FiCheck } from 'react-icons/fi';
 
 interface ShareModalProps {
-  gif: GifType | null;
   isOpen: boolean;
   onClose: () => void;
+  gifUrl: string;
+  previewUrl: string;
 }
 
-export default function ShareModal({ gif, isOpen, onClose }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, gifUrl, previewUrl }: ShareModalProps) {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const toast = useToast();
+  const { colorMode } = useColorMode();
 
-  if (!gif) return null;
-
-  const shareUrl = `${window.location.origin}/uploads/${gif.filename}`;
-  const htmlEmbed = `<img src="${shareUrl}" alt="${gif.title}" />`;
-  const markdownEmbed = `![${gif.title}](${shareUrl})`;
-
-  const { onCopy: copyLink } = useClipboard(shareUrl);
-  const { onCopy: copyHtml } = useClipboard(htmlEmbed);
-  const { onCopy: copyMarkdown } = useClipboard(markdownEmbed);
-
-  const handleCopy = (copyFn: () => void, type: string) => {
-    copyFn();
+  const handleCopy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
     toast({
-      title: 'Copied!',
-      description: `${type} has been copied to clipboard`,
+      title: 'Copied to clipboard!',
       status: 'success',
       duration: 2000,
     });
   };
 
+  const shareOptions = [
+    {
+      label: 'Direct Link',
+      content: gifUrl,
+    },
+    {
+      label: 'HTML Embed',
+      content: `<img src="${gifUrl}" alt="GIF" />`,
+    },
+    {
+      label: 'Markdown',
+      content: `![GIF](${gifUrl})`,
+    },
+    {
+      label: 'Reddit',
+      content: `[GIF](${gifUrl})`,
+    },
+  ];
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
-      <ModalOverlay backdropFilter="blur(5px)" />
-      <ModalContent bg="gray.900" borderWidth={1} borderColor="whiteAlpha.200">
-        <ModalHeader borderBottomWidth={1} borderColor="whiteAlpha.100">
+      <ModalOverlay backdropFilter="blur(4px)" />
+      <ModalContent bg={colorMode === 'dark' ? 'dark.100' : 'white'}>
+        <ModalHeader borderBottomWidth="1px" borderColor={colorMode === 'dark' ? 'whiteAlpha.100' : 'gray.100'}>
           Share GIF
         </ModalHeader>
         <ModalCloseButton />
-        <ModalBody py={6}>
-          <Tabs variant="soft-rounded" colorScheme="purple">
-            <TabList mb={4}>
-              <Tab>Direct Link</Tab>
-              <Tab>HTML Embed</Tab>
-              <Tab>Markdown</Tab>
-            </TabList>
-            <TabPanels>
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Box borderRadius="md" overflow="hidden" maxW="300px" mx="auto">
-                    <Image src={shareUrl} alt={gif.title} />
-                  </Box>
-                  <Box>
-                    <Text mb={2} fontSize="sm" color="whiteAlpha.700">Direct link to your GIF:</Text>
-                    <Input
-                      value={shareUrl}
-                      readOnly
-                      pr="4.5rem"
-                      bg="gray.800"
-                      borderColor="whiteAlpha.200"
-                    />
-                    <Button
-                      position="absolute"
-                      right={4}
-                      top="50%"
-                      transform="translateY(-50%)"
-                      size="sm"
-                      onClick={() => handleCopy(copyLink, 'Direct link')}
-                      colorScheme="purple"
-                      variant="ghost"
+        <ModalBody p={6}>
+          <Flex gap={6} direction={{ base: 'column', md: 'row' }}>
+            {/* Preview Section */}
+            <Box flex="1">
+              <Text fontSize="sm" fontWeight="medium" mb={2}>
+                Preview
+              </Text>
+              <Box
+                borderRadius="md"
+                overflow="hidden"
+                borderWidth="1px"
+                borderColor={colorMode === 'dark' ? 'whiteAlpha.100' : 'gray.200'}
+                bg={colorMode === 'dark' ? 'dark.200' : 'gray.50'}
+                position="relative"
+                paddingTop="75%"
+              >
+                <Image
+                  src={previewUrl}
+                  alt="GIF Preview"
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  width="100%"
+                  height="100%"
+                  objectFit="contain"
+                />
+              </Box>
+            </Box>
+
+            {/* Share Options Section */}
+            <VStack flex="1" spacing={4} align="stretch">
+              <Text fontSize="sm" fontWeight="medium">
+                Share Options
+              </Text>
+              <Tabs variant="soft-rounded" colorScheme="purple" size="sm">
+                <TabList>
+                  {shareOptions.map((option) => (
+                    <Tab
+                      key={option.label}
+                      fontSize="xs"
+                      px={3}
+                      _selected={{
+                        bg: colorMode === 'dark' ? 'brand.500' : 'brand.400',
+                        color: 'white',
+                      }}
                     >
-                      Copy
-                    </Button>
-                  </Box>
-                </VStack>
-              </TabPanel>
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Box bg="gray.800" p={4} borderRadius="md">
-                    <Code display="block" whiteSpace="pre" children={htmlEmbed} />
-                  </Box>
-                  <Box position="relative">
-                    <Text mb={2} fontSize="sm" color="whiteAlpha.700">HTML embed code:</Text>
-                    <Input
-                      value={htmlEmbed}
-                      readOnly
-                      pr="4.5rem"
-                      bg="gray.800"
-                      borderColor="whiteAlpha.200"
-                    />
-                    <Button
-                      position="absolute"
-                      right={4}
-                      top="50%"
-                      transform="translateY(-50%)"
-                      size="sm"
-                      onClick={() => handleCopy(copyHtml, 'HTML code')}
-                      colorScheme="purple"
-                      variant="ghost"
-                    >
-                      Copy
-                    </Button>
-                  </Box>
-                </VStack>
-              </TabPanel>
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Box bg="gray.800" p={4} borderRadius="md">
-                    <Code display="block" whiteSpace="pre" children={markdownEmbed} />
-                  </Box>
-                  <Box position="relative">
-                    <Text mb={2} fontSize="sm" color="whiteAlpha.700">Markdown code:</Text>
-                    <Input
-                      value={markdownEmbed}
-                      readOnly
-                      pr="4.5rem"
-                      bg="gray.800"
-                      borderColor="whiteAlpha.200"
-                    />
-                    <Button
-                      position="absolute"
-                      right={4}
-                      top="50%"
-                      transform="translateY(-50%)"
-                      size="sm"
-                      onClick={() => handleCopy(copyMarkdown, 'Markdown code')}
-                      colorScheme="purple"
-                      variant="ghost"
-                    >
-                      Copy
-                    </Button>
-                  </Box>
-                </VStack>
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
+                      {option.label}
+                    </Tab>
+                  ))}
+                </TabList>
+                <TabPanels mt={4}>
+                  {shareOptions.map((option) => (
+                    <TabPanel key={option.label} p={0}>
+                      <VStack spacing={2} align="stretch">
+                        <InputGroup size="sm">
+                          <Input
+                            value={option.content}
+                            readOnly
+                            pr="4.5rem"
+                            fontFamily="mono"
+                            fontSize="xs"
+                            bg={colorMode === 'dark' ? 'dark.300' : 'gray.50'}
+                          />
+                          <InputRightElement width="4.5rem">
+                            <Button
+                              h="1.4rem"
+                              size="xs"
+                              onClick={() => handleCopy(option.content, option.label)}
+                              leftIcon={copiedField === option.label ? <FiCheck /> : <FiCopy />}
+                              colorScheme={copiedField === option.label ? 'green' : 'gray'}
+                              variant="ghost"
+                            >
+                              {copiedField === option.label ? 'Copied' : 'Copy'}
+                            </Button>
+                          </InputRightElement>
+                        </InputGroup>
+                        <Code
+                          p={2}
+                          borderRadius="md"
+                          fontSize="xs"
+                          bg={colorMode === 'dark' ? 'dark.300' : 'gray.50'}
+                        >
+                          {option.content}
+                        </Code>
+                      </VStack>
+                    </TabPanel>
+                  ))}
+                </TabPanels>
+              </Tabs>
+            </VStack>
+          </Flex>
         </ModalBody>
       </ModalContent>
     </Modal>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -6,16 +6,23 @@ import {
   ModalHeader,
   ModalBody,
   ModalCloseButton,
+  Button,
   FormControl,
   FormLabel,
   Input,
-  Button,
   VStack,
   useToast,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
   Text,
-  Link,
+  Alert,
+  AlertIcon,
 } from '@chakra-ui/react';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -23,47 +30,64 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  const { login, register } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
   const toast = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
+  const handleLogin = async () => {
     try {
-      if (isLogin) {
-        await login(email, password);
-        toast({
-          title: 'Login successful',
-          status: 'success',
-          duration: 3000,
-        });
-      } else {
-        await register(email, password, name);
-        toast({
-          title: 'Registration successful',
-          description: 'Please log in with your new account',
-          status: 'success',
-          duration: 3000,
-        });
-        setIsLogin(true);
-      }
-      onClose();
-    } catch (error: any) {
+      setIsLoading(true);
+      const response = await axios.post('/api/auth/login', { email, password });
+      const { token } = response.data;
+      login(token);
       toast({
-        title: 'Error',
-        description: error.response?.data?.error || 'Something went wrong',
+        title: 'Login successful',
+        status: 'success',
+        duration: 3000,
+      });
+      onClose();
+    } catch (error) {
+      console.error('Login error:', error);
+      toast({
+        title: 'Login failed',
+        description: 'Please check your credentials and try again',
         status: 'error',
         duration: 3000,
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axios.post('/api/auth/register', {
+        name,
+        email,
+        password,
+      });
+      const { token } = response.data;
+      login(token);
+      toast({
+        title: 'Registration successful',
+        status: 'success',
+        duration: 3000,
+      });
+      onClose();
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast({
+        title: 'Registration failed',
+        description: 'Please try again with different credentials',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -71,58 +95,86 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>{isLogin ? 'Login' : 'Register'}</ModalHeader>
+        <ModalHeader>Authentication</ModalHeader>
         <ModalCloseButton />
-        <ModalBody>
-          <form onSubmit={handleSubmit}>
-            <VStack spacing={4}>
-              {!isLogin && (
-                <FormControl isRequired>
-                  <FormLabel>Name</FormLabel>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your name"
-                  />
-                </FormControl>
-              )}
-              <FormControl isRequired>
-                <FormLabel>Email</FormLabel>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                />
-              </FormControl>
-              <FormControl isRequired>
-                <FormLabel>Password</FormLabel>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                />
-              </FormControl>
-              <Button
-                type="submit"
-                colorScheme="blue"
-                width="100%"
-                isLoading={loading}
-              >
-                {isLogin ? 'Login' : 'Register'}
-              </Button>
-              <Text>
-                {isLogin ? "Don't have an account? " : "Already have an account? "}
-                <Link
-                  color="blue.500"
-                  onClick={() => setIsLogin(!isLogin)}
-                >
-                  {isLogin ? 'Register' : 'Login'}
-                </Link>
-              </Text>
-            </VStack>
-          </form>
+        <ModalBody pb={6}>
+          <Alert status="warning" borderRadius="md" mb={4}>
+            <AlertIcon />
+            <Text fontSize="sm">
+              By signing up, you agree to our content policies. Any inappropriate content will be removed.
+            </Text>
+          </Alert>
+          <Tabs isFitted>
+            <TabList mb={4}>
+              <Tab>Login</Tab>
+              <Tab>Register</Tab>
+            </TabList>
+            <TabPanels>
+              <TabPanel>
+                <VStack spacing={4}>
+                  <FormControl>
+                    <FormLabel>Email</FormLabel>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Password</FormLabel>
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </FormControl>
+                  <Button
+                    colorScheme="blue"
+                    onClick={handleLogin}
+                    isLoading={isLoading}
+                    width="full"
+                  >
+                    Login
+                  </Button>
+                </VStack>
+              </TabPanel>
+              <TabPanel>
+                <VStack spacing={4}>
+                  <FormControl>
+                    <FormLabel>Name</FormLabel>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Email</FormLabel>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Password</FormLabel>
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </FormControl>
+                  <Button
+                    colorScheme="blue"
+                    onClick={handleRegister}
+                    isLoading={isLoading}
+                    width="full"
+                  >
+                    Register
+                  </Button>
+                </VStack>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         </ModalBody>
       </ModalContent>
     </Modal>

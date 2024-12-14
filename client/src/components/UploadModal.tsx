@@ -24,9 +24,10 @@ import { useAuth } from '../context/AuthContext';
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export function UploadModal({ isOpen, onClose }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -67,6 +68,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         duration: 3000,
       });
       handleClose();
+      onSuccess?.();
     },
     onError: (error: any) => {
       toast({
@@ -100,10 +102,10 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         });
         return false;
       }
-      if (file.size > 50 * 1024 * 1024) {
+      if (file.size > 25 * 1024 * 1024) {
         toast({
           title: 'File too large',
-          description: `${file.name} exceeds 50MB limit`,
+          description: `${file.name} exceeds 25MB limit`,
           status: 'error',
           duration: 3000,
         });

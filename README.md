@@ -1,185 +1,130 @@
-# Host your GIF
+# GifTrove 🎯
 
-Host your GIF is a feature-rich, modern GIF hosting and sharing platform built with React, TypeScript, Express.js, and PostgreSQL. It provides a seamless experience for managing and sharing your favorite GIF files with a beautiful and intuitive interface.
+A modern, secure platform for hosting and sharing GIFs with built-in privacy controls and a beautiful user interface.
 
-## Features
+## ✨ Features
 
-### Core Features
-- 🎯 Bulk GIF upload with preview
-- 🔄 Real-time upload progress
-- 🔍 Search through your GIF collection
-- 📋 Copy-to-clipboard sharing
-- 🔗 Direct link generation
-- 📱 Responsive design for all devices
+- 🔒 **Privacy Controls**: Public and private GIF sharing options
+- 🎨 **Modern UI**: Clean, responsive design with dark/light mode support
+- 🔍 **Smart Search**: Real-time GIF search functionality
+- 👤 **User Management**: Secure authentication and user profiles
+- 📤 **Easy Sharing**: Quick share options with multiple format support
+- 🌐 **Multi-format Support**: Support for various GIF formats
+- 💾 **File Management**: 25MB file size limit with automatic cleanup
+- 🎯 **Content Safety**: Built-in content moderation policies
+- 🌙 **Theme Support**: Elegant dark and light mode themes
+- 📱 **Responsive Design**: Works seamlessly on all devices
 
-### User Experience
-- ⚡️ Fast loading and optimization
-- 🎨 Modern, intuitive interface
-- 📊 Upload status tracking
-- 🏷️ Title and description management
-- 📂 Grid-based gallery view
+## 🚀 Tech Stack
 
-### Technical Features
-- 🔒 Secure file handling
-- 💾 PostgreSQL metadata storage
-- 🚀 Optimized file serving
-- 📈 Error handling and logging
-- 🔍 Image preview generation
+- **Frontend**: React, TypeScript, Chakra UI, Framer Motion
+- **Backend**: Node.js, Express
+- **Database**: PostgreSQL with Drizzle ORM
+- **Authentication**: JWT-based auth system
+- **Storage**: Local file system with automatic cleanup
+- **API**: RESTful API with rate limiting
 
-### Sharing & Social
-- 🔗 One-click sharing
-- 🔗 Direct URL access
-- 📋 Easy copy link button
-- 👥 Public access to shared GIFs
+## 🛠️ Setup
 
-### Management
-- 📁 Simple upload interface
-- 📋 Basic metadata editing
-- 🗑️ Delete functionality
-- 📱 Mobile-friendly interface
-
-## Tech Stack
-
-### Frontend
-- React
-- TypeScript
-- Tailwind CSS
-- Vite (Build tool)
-
-### Backend
-- Express.js
-- TypeScript
-- PostgreSQL
-- Drizzle ORM
-
-### Infrastructure
-- Docker
-- Docker Compose
-
-## Prerequisites
-
-- Node.js (v20 or later)
-- Docker and Docker Compose
-- PostgreSQL (for local development)
-
-## Environment Setup
-
-1. Create a `.env` file in the root directory:
-
-```env
-NODE_ENV=development
-PORT=3000
-DATABASE_URL=postgres://postgres:postgres@postgres:5432/giftrove?sslmode=disable
-VITE_API_URL=http://localhost:3000
+1. **Clone the repository**
+```bash
+git clone https://github.com/rohitg00/host-your-gif
+cd host-your-gif
 ```
 
-## Running Locally
-
-1. Install dependencies:
+2. **Install dependencies**
 ```bash
+# Install server dependencies
+cd server
+npm install
+
+# Install client dependencies
+cd ../client
 npm install
 ```
 
-2. Start the development server:
+3. **Environment Setup**
+Copy `.env.example` to `.env` in both client and server directories and update the values:
+
+```env
+# Server Environment Variables
+DATABASE_URL=postgresql://user:password@localhost:5432/giftrove
+JWT_SECRET=your_jwt_secret_key
+PORT=3000
+UPLOAD_DIR=uploads
+MAX_FILE_SIZE=25000000
+RATE_LIMIT_WINDOW=15
+RATE_LIMIT_MAX=100
+
+# Client Environment Variables
+VITE_API_URL=http://localhost:3000
+```
+
+4. **Database Setup**
 ```bash
-npm run dev
-```
-
-The application will be available at `http://localhost:3000`.
-
-## Running with Docker
-
-1. Build and start the containers:
-```bash
-docker-compose up --build
-```
-
-2. The application will be available at `http://localhost:3000`
-
-3. To stop the containers:
-```bash
-docker-compose down
-```
-
-4. To remove all data (volumes):
-```bash
-docker-compose down -v
-```
-
-## Project Structure
-
-```
-Host your GIF/
-├── client/                 # Frontend React application
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── pages/        # Page components
-│   │   └── styles/       # CSS styles
-├── server/                # Backend Express application
-│   ├── routes/           # API routes
-│   └── db/              # Database configuration
-├── db/                   # Database migrations
-├── uploads/             # GIF file storage
-├── docker-compose.yml   # Docker Compose configuration
-├── Dockerfile           # Docker configuration
-└── package.json         # Project dependencies
-```
-
-## Database Migrations
-
-The project uses Drizzle ORM for database management. Migrations are automatically run when starting the Docker containers.
-
-To run migrations manually:
-```bash
+cd server
 npm run db:migrate
 ```
 
-## Development Workflow
-
-1. Make changes to the code
-2. Test locally using `npm run dev`
-3. Build the project using `npm run build`
-4. Test the production build using Docker
-
-## Production Deployment
-
-1. Ensure all environment variables are properly set
-2. Build and start the containers:
+5. **Start the Application**
 ```bash
-docker-compose -f docker-compose.yml up -d
+# Start server (from server directory)
+npm run dev
+
+# Start client (from client directory)
+npm run dev
+```
+## 🐳 Run with Docker
+
+1. **Pull the Docker Image**
+```bash
+docker pull rohitghumare64/host-your-gif:latest
 ```
 
-## Troubleshooting
+2. **Run the Docker Container**
+```bash
+docker run -p 3000:3000 rohitghumare64/host-your-gif:latest \
+-e DATABASE_URL=postgresql://user:password@localhost:5432/giftrove \
+-e JWT_SECRET=your_jwt_secret_key
+```
 
-### Common Issues
+## 📝 API Documentation
 
-1. **Database Connection Issues**
-   - Verify PostgreSQL is running
-   - Check DATABASE_URL in .env
-   - Ensure migrations have run
+### Authentication Endpoints
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - User login
+- `POST /api/auth/logout` - User logout
+- `GET /api/auth/me` - Get current user
 
-2. **File Upload Issues**
-   - Check uploads directory permissions
-   - Verify file size limits
-   - Check server logs for errors
+### GIF Endpoints
+- `POST /api/upload` - Upload new GIF(s)
+- `GET /api/gifs` - Get all public GIFs
+- `GET /api/gifs/:id` - Get specific GIF
+- `DELETE /api/gifs/:id` - Delete a GIF
 
-3. **Docker Issues**
-   - Clear Docker cache: `docker system prune`
-   - Rebuild containers: `docker-compose up --build`
-   - Check Docker logs: `docker-compose logs`
+## 🔒 Security
 
-## Contributing
+- Rate limiting on all API endpoints
+- JWT-based authentication
+- File type validation
+- Content moderation
+- Secure file storage
+- XSS protection
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+## 📜 License
 
-## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 📋 Content Policy
 
-## Support
+Please review our [Content Policy](POLICY.md) for guidelines on acceptable content.
 
-For support, please open an issue in the GitHub repository.
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 🙏 Acknowledgments
+
+- Hosted on [Sevalla](https://sevalla.com)
+- Built with [Chakra UI](https://chakra-ui.com)
+- Icons by [React Icons](https://react-icons.github.io/react-icons)

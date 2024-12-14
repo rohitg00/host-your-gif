@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY client/package*.json ./client/
 
-# Install dependencies
+# Install dependencies with clean install
 RUN npm install
 RUN cd client && npm install
 
@@ -31,23 +31,22 @@ RUN apk add --no-cache netcat-openbsd
 # Create non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy built artifacts and necessary files
+# Create necessary directories and set permissions
+RUN mkdir -p /app/uploads /app/db/migrations \
+    && chown -R appuser:appgroup /app
+
+# Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
-COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/db ./db
+COPY --from=builder /app/uploads ./uploads
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/wait-for-it.sh ./wait-for-it.sh
 
-# Ensure migrations directory exists and copy migrations
-RUN mkdir -p /app/db/migrations
-COPY --from=builder /app/db/migrations/*.sql /app/db/migrations/
-COPY --from=builder /app/db/migrate.* /app/db/
-
-# Create uploads directory with proper permissions
-RUN mkdir -p uploads && chown -R appuser:appgroup /app
-
-# Create startup script
-COPY docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh && chown appuser:appgroup /app/docker-entrypoint.sh
+# Make wait-for-it.sh executable
+RUN chmod +x /app/wait-for-it.sh
 
 # Switch to non-root user
 USER appuser
@@ -55,5 +54,5 @@ USER appuser
 # Expose port
 EXPOSE 3000
 
-# Set entrypoint
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# Start the application
+CMD ["npm", "start"]

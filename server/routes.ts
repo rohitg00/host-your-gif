@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import { db } from "../db";
 import { gifs, sessions, users } from "@db/schema";
-import { eq, like, and, or, gt } from "drizzle-orm";
+import { eq, like, and, or, gt, desc } from "drizzle-orm";
 import { authMiddleware } from "./middleware/auth";
 import { apiLimiter, authLimiter } from "./middleware/rateLimiter";
 import authRoutes from "./routes/auth";
@@ -15,8 +15,52 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
+// Function to check disk space
+const checkDiskSpace = () => {
+  const stats = fs.statfsSync(uploadsDir);
+  const availableSpace = stats.bavail * stats.bsize;
+  return availableSpace > 100 * 1024 * 1024; // Ensure at least 100MB free
+};
+
+// Function to clean up old files if needed
+const cleanupOldFiles = async () => {
+  try {
+    // Get all files in uploads directory
+    const files = fs.readdirSync(uploadsDir);
+    
+    // Get file stats and sort by creation time
+    const fileStats = files.map(file => ({
+      name: file,
+      path: path.join(uploadsDir, file),
+      ctime: fs.statSync(path.join(uploadsDir, file)).ctime
+    })).sort((a, b) => a.ctime.getTime() - b.ctime.getTime());
+
+    // Delete oldest files until we have enough space
+    while (fileStats.length > 0 && !checkDiskSpace()) {
+      const oldestFile = fileStats.shift();
+      if (oldestFile) {
+        fs.unlinkSync(oldestFile.path);
+        // Also remove from database
+        await db.delete(gifs)
+          .where(eq(gifs.filename, oldestFile.name));
+      }
+    }
+  } catch (error) {
+    console.error('Cleanup error:', error);
+  }
+};
+
 const storage = multer.diskStorage({
-  destination: uploadsDir,
+  destination: async (req, file, cb) => {
+    try {
+      if (!checkDiskSpace()) {
+        await cleanupOldFiles();
+      }
+      cb(null, uploadsDir);
+    } catch (error) {
+      cb(error as Error, uploadsDir);
+    }
+  },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   }
@@ -25,8 +69,8 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-    files: 10 // Maximum 10 files
+    fileSize: 25 * 1024 * 1024, // Reduced to 25MB limit
+    files: 5 // Reduced to 5 files max
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype !== "image/gif") {
@@ -46,7 +90,7 @@ export function registerRoutes(app: Express) {
   app.use("/api/auth", authRoutes);
 
   // Upload GIF(s)
-  app.post("/api/upload", authMiddleware, upload.array("gif", 10), async (req, res) => {
+  app.post("/api/upload", authMiddleware, upload.array("gif", 5), async (req, res) => {
     try {
       if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
         return res.status(400).json({ error: "No files uploaded" });
@@ -83,39 +127,43 @@ export function registerRoutes(app: Express) {
     try {
       const search = req.query.q as string;
       const userId = req.query.userId as string;
+      const currentUser = req.user;
       
       let conditions = [];
-      
+
       // Add search condition if provided
       if (search) {
         conditions.push(like(gifs.title, `%${search}%`));
       }
 
-      // If user is requesting their own GIFs
-      if (req.user && userId === req.user.id.toString()) {
-        // Show all GIFs (public and private) for the user
-        conditions.push(eq(gifs.userId, req.user.id));
-      } else if (userId) {
-        // Show only public GIFs for other users
+      // Filter by user ID if provided
+      if (userId) {
+        conditions.push(eq(gifs.userId, parseInt(userId)));
+      }
+
+      // Privacy filter:
+      // - If user is logged in: show public GIFs and their own private GIFs
+      // - If user is not logged in: show only public GIFs
+      if (currentUser) {
         conditions.push(
-          and(
-            eq(gifs.userId, parseInt(userId)),
-            eq(gifs.isPublic, true)
+          or(
+            eq(gifs.isPublic, true),
+            eq(gifs.userId, currentUser.id)
           )
         );
       } else {
-        // Show all public GIFs
         conditions.push(eq(gifs.isPublic, true));
       }
 
-      const results = await db.select()
+      const results = await db
+        .select()
         .from(gifs)
         .where(and(...conditions))
-        .orderBy(gifs.createdAt);
+        .orderBy(desc(gifs.createdAt));
 
       res.json(results);
     } catch (error) {
-      console.error('Get GIFs error:', error);
+      console.error('Error fetching GIFs:', error);
       res.status(500).json({ error: "Failed to fetch GIFs" });
     }
   });
@@ -143,37 +191,45 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Delete GIF (only owner can delete)
+  // Delete GIF
   app.delete("/api/gifs/:id", authMiddleware, async (req, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
       const gifId = parseInt(req.params.id);
-      
-      // Find the GIF first
-      const [gif] = await db.select()
-        .from(gifs)
-        .where(eq(gifs.id, gifId));
-
-      if (!gif) {
-        return res.status(404).json({ error: "GIF not found" });
+      if (isNaN(gifId)) {
+        return res.status(400).json({ error: "Invalid GIF ID" });
       }
 
-      // Check if user owns the GIF
-      if (gif.userId !== req.user!.id) {
-        return res.status(403).json({ error: "Not authorized to delete this GIF" });
+      // First check if the GIF exists and belongs to the user
+      const existingGif = await db.select().from(gifs)
+        .where(and(
+          eq(gifs.id, gifId),
+          eq(gifs.userId, req.user.id)
+        ));
+
+      if (!existingGif || existingGif.length === 0) {
+        return res.status(404).json({ error: "GIF not found or unauthorized" });
       }
 
-      // Delete the GIF from database
-      await db.delete(gifs).where(eq(gifs.id, gifId));
-
-      // Delete the file from uploads directory
-      const filePath = path.join(uploadsDir, gif.filename);
+      // Delete the file
+      const filePath = path.join(uploadsDir, existingGif[0].filename);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
 
+      // Delete from database
+      await db.delete(gifs)
+        .where(and(
+          eq(gifs.id, gifId),
+          eq(gifs.userId, req.user.id)
+        ));
+
       res.json({ message: "GIF deleted successfully" });
     } catch (error) {
-      console.error('Delete GIF error:', error);
+      console.error('Delete error:', error);
       res.status(500).json({ error: "Failed to delete GIF" });
     }
   });

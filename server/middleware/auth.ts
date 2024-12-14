@@ -13,13 +13,21 @@ declare global {
 }
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
   try {
+    console.log('Auth headers:', req.headers);
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.split(' ')[1];
+    
+    console.log('Auth attempt:', {
+      hasAuthHeader: !!authHeader,
+      token: token ? 'present' : 'missing'
+    });
+
+    if (!token) {
+      console.log('No token provided');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     // Find valid session
     const [session] = await db
       .select()
@@ -31,7 +39,13 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         )
       );
 
+    console.log('Session lookup:', {
+      found: !!session,
+      expired: session ? new Date() > session.expiresAt : null
+    });
+
     if (!session) {
+      console.log('Invalid or expired session');
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
@@ -41,13 +55,20 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
       .from(users)
       .where(eq(users.id, session.userId));
 
+    console.log('User lookup:', {
+      found: !!user,
+      userId: user?.id
+    });
+
     if (!user) {
+      console.log('User not found');
       return res.status(401).json({ error: 'User not found' });
     }
 
     // Attach user and session to request
     req.user = user;
     req.session = session;
+    console.log('Auth successful:', { userId: user.id });
     next();
   } catch (error) {
     console.error('Auth error:', error);

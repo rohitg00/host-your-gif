@@ -16,13 +16,13 @@ const runMigration = async () => {
   try {
     const sql = postgres(connectionString, {
       max: 1,
-      ssl: {
-        rejectUnauthorized: false
-      },
+      ssl: false,
       idle_timeout: 20,
-      connect_timeout: 10,
-      keepalive: true,
-      application_name: 'giftrove-migrations'
+      connect_timeout: 30,
+      keep_alive: 30,
+      debug: true, // Add debug logging
+      onnotice: m => console.log('Database Notice:', m),
+      onparameter: (k, v) => console.log('Database Parameter:', k, v)
     });
     
     const db = drizzle(sql);
