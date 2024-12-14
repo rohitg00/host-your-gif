@@ -2,7 +2,7 @@
 
 A modern, secure platform for hosting and sharing GIFs with built-in privacy controls and a beautiful user interface.
 
-![GIF](public/gif-demo.gif)
+[GIF](public/gif-demo.gif)
 
 ## ✨ Features
 
