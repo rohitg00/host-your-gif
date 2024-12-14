@@ -2,7 +2,7 @@
 
 A modern, secure platform for hosting and sharing GIFs with built-in privacy controls and a beautiful user interface.
 
-![GIF](https://hostyourgif.live/uploads/1734211617480-gif-demo.gif)
+![GIF](public/gif-demo.gif)
 
 ## ✨ Features
 
