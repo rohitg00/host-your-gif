@@ -1,4 +1,5 @@
-import type { Express } from "express";
+import type { Express, Response } from "express";
+import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -89,6 +90,182 @@ export function registerRoutes(app: Express) {
   // Register auth routes
   app.use("/api/auth", authRoutes);
 
+  // Serve uploads directory with proper headers
+  app.use('/uploads', (req, res, next) => {
+    res.set({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Cache-Control': 'public, max-age=31536000', // 1 year cache
+      'Cross-Origin-Resource-Policy': 'cross-origin'
+    });
+    next();
+  }, express.static(uploadsDir));
+
+  // Cleanup duplicate GIFs
+  app.delete("/api/gifs/cleanup/duplicates", async (req, res) => {
+    try {
+      // Get all GIFs grouped by filename
+      const allGifs = await db.select().from(gifs);
+      const groupedByFilename = allGifs.reduce((acc, gif) => {
+        if (!acc[gif.filename]) {
+          acc[gif.filename] = [];
+        }
+        acc[gif.filename].push(gif);
+        return acc;
+      }, {} as Record<string, typeof allGifs>);
+
+      // Find duplicates and keep only the latest one
+      const duplicates = Object.values(groupedByFilename)
+        .filter(group => group.length > 1)
+        .map(group => {
+          // Sort by creation date, newest first
+          group.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          // Return all but the first (newest) one
+          return group.slice(1);
+        })
+        .flat();
+
+      // Delete duplicate records
+      for (const gif of duplicates) {
+        await db.delete(gifs).where(eq(gifs.id, gif.id));
+      }
+
+      res.json({
+        message: "Duplicate GIFs cleaned up successfully",
+        removed: duplicates.length,
+        details: duplicates
+      });
+    } catch (error) {
+      console.error('Duplicate cleanup error:', error);
+      res.status(500).json({ error: "Failed to clean up duplicate GIFs" });
+    }
+  });
+
+  // Clear all GIFs (temporary route for cleanup)
+  app.delete("/api/gifs/cleanup/all", async (req, res) => {
+    try {
+      await db.delete(gifs);
+      res.json({ message: "All GIFs cleared successfully" });
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      res.status(500).json({ error: "Failed to clear GIFs" });
+    }
+  });
+
+  // Cleanup localhost URLs
+  app.delete("/api/gifs/cleanup/localhost", async (req, res) => {
+    try {
+      // First, get all GIFs with localhost URLs
+      const localhostGifs = await db
+        .select()
+        .from(gifs)
+        .where(
+          or(
+            like(gifs.filepath, '%localhost%'),
+            like(gifs.shareUrl, '%localhost%')
+          )
+        );
+
+      // Delete the files
+      for (const gif of localhostGifs) {
+        const filePath = path.join(uploadsDir, gif.filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+
+      // Delete from database
+      await db
+        .delete(gifs)
+        .where(
+          or(
+            like(gifs.filepath, '%localhost%'),
+            like(gifs.shareUrl, '%localhost%')
+          )
+        );
+
+      res.json({ 
+        message: "Localhost GIFs cleaned up successfully",
+        removed: localhostGifs.length,
+        gifs: localhostGifs
+      });
+    } catch (error) {
+      console.error('Localhost cleanup error:', error);
+      res.status(500).json({ error: "Failed to clean up localhost GIFs" });
+    }
+  });
+
+  // Temporary route to fix share URLs
+  app.post("/api/gifs/fix-urls", async (req, res) => {
+    try {
+      const allGifs = await db.select().from(gifs);
+      const updates = await Promise.all(
+        allGifs.map(async (gif) => {
+          if (gif.shareUrl.includes('/g/')) {
+            const newShareUrl = gif.shareUrl.replace('/g/', '/uploads/');
+            await db
+              .update(gifs)
+              .set({ shareUrl: newShareUrl })
+              .where(eq(gifs.id, gif.id));
+            return { id: gif.id, old: gif.shareUrl, new: newShareUrl };
+          }
+          return null;
+        })
+      );
+      
+      const updatedGifs = updates.filter(Boolean);
+      res.json({ 
+        message: "Share URLs updated successfully", 
+        updated: updatedGifs.length,
+        details: updatedGifs 
+      });
+    } catch (error) {
+      console.error('URL fix error:', error);
+      res.status(500).json({ error: "Failed to update share URLs" });
+    }
+  });
+
+  // Fix all GIF URLs
+  app.post("/api/gifs/fix-all-urls", async (req, res) => {
+    try {
+      // Always use the public domain
+      const baseUrl = 'https://hostyourgif.live';
+
+      const allGifs = await db.select().from(gifs);
+      const updates = await Promise.all(
+        allGifs.map(async (gif) => {
+          const newUrl = `${baseUrl}/uploads/${gif.filename}`;
+          if (gif.filepath !== newUrl || gif.shareUrl !== newUrl) {
+            await db
+              .update(gifs)
+              .set({ 
+                filepath: newUrl,
+                shareUrl: newUrl 
+              })
+              .where(eq(gifs.id, gif.id));
+            return { 
+              id: gif.id, 
+              oldFilepath: gif.filepath,
+              oldShareUrl: gif.shareUrl,
+              newUrl 
+            };
+          }
+          return null;
+        })
+      );
+      
+      const updatedGifs = updates.filter(Boolean);
+      res.json({ 
+        message: "All GIF URLs updated successfully", 
+        updated: updatedGifs.length,
+        details: updatedGifs 
+      });
+    } catch (error) {
+      console.error('URL fix error:', error);
+      res.status(500).json({ error: "Failed to update GIF URLs" });
+    }
+  });
+
   // Upload GIF(s)
   app.post("/api/upload", authMiddleware, upload.array("gif", 5), async (req, res) => {
     try {
@@ -100,15 +277,18 @@ export function registerRoutes(app: Express) {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      // Always use the public domain
+      const baseUrl = 'https://hostyourgif.live';
+
       const results = await Promise.all(
         req.files.map(async (file) => {
+          const filepath = `${baseUrl}/uploads/${file.filename}`;
           const gif = await db.insert(gifs).values({
             userId: req.user!.id,
             title: file.originalname,
             filename: file.filename,
-            filepath: `${baseUrl}/uploads/${file.filename}`,
-            shareUrl: `${baseUrl}/g/${file.filename}`,
+            filepath: filepath,
+            shareUrl: filepath,
             isPublic: req.body.isPublic === 'true'
           }).returning();
           return gif[0];
@@ -147,12 +327,20 @@ export function registerRoutes(app: Express) {
       if (currentUser) {
         conditions.push(
           or(
-            eq(gifs.isPublic, true),
+            and(
+              eq(gifs.isPublic, true),
+              gt(gifs.userId, 0) // Ensure GIF belongs to a real user
+            ),
             eq(gifs.userId, currentUser.id)
           )
         );
       } else {
-        conditions.push(eq(gifs.isPublic, true));
+        conditions.push(
+          and(
+            eq(gifs.isPublic, true),
+            gt(gifs.userId, 0) // Ensure GIF belongs to a real user
+          )
+        );
       }
 
       const results = await db

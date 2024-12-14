@@ -85,13 +85,23 @@ export default function GifCard({ gif, user }: GifCardProps) {
     }
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(gif.shareUrl);
-    toast({
-      title: 'Link copied!',
-      status: 'success',
-      duration: 2000,
-    });
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(gif.shareUrl);
+      toast({
+        title: 'Link copied!',
+        status: 'success',
+        duration: 2000,
+      });
+    } catch (err) {
+      console.error('Copy failed:', err);
+      toast({
+        title: 'Failed to copy link',
+        description: 'Please try again',
+        status: 'error',
+        duration: 2000,
+      });
+    }
   };
 
   const canDelete = user && gif.userId === user.id;

@@ -80,7 +80,7 @@ export default function GifGrid({ gifs, onDelete }: GifGridProps) {
           <Card className="overflow-hidden group cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all relative">
             <div className="aspect-square relative">
               <img
-                src={`/uploads/${gif.filename}`}
+                src={gif.filepath}
                 alt={gif.title}
                 className="w-full h-full object-cover"
               />
@@ -114,7 +114,7 @@ export default function GifGrid({ gifs, onDelete }: GifGridProps) {
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         gifUrl={selectedGif?.shareUrl || ""}
-        previewUrl={selectedGif?.filename ? `/uploads/${selectedGif.filename}` : ""}
+        previewUrl={selectedGif?.filepath || ""}
       />
     </div>
   );

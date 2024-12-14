@@ -39,14 +39,31 @@ export function ShareModal({ isOpen, onClose, gifUrl, previewUrl }: ShareModalPr
   const { colorMode } = useColorMode();
 
   const handleCopy = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-    toast({
-      title: 'Copied to clipboard!',
-      status: 'success',
-      duration: 2000,
-    });
+    try {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedField(field);
+        setTimeout(() => setCopiedField(null), 2000);
+        toast({
+          title: 'Copied to clipboard!',
+          status: 'success',
+          duration: 2000,
+        });
+      }).catch((err) => {
+        console.error('Copy failed:', err);
+        toast({
+          title: 'Failed to copy',
+          status: 'error',
+          duration: 2000,
+        });
+      });
+    } catch (err) {
+      console.error('Copy failed:', err);
+      toast({
+        title: 'Failed to copy',
+        status: 'error',
+        duration: 2000,
+      });
+    }
   };
 
   const shareOptions = [
