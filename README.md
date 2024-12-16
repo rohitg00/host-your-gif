@@ -4,6 +4,8 @@ A modern, secure platform for hosting and sharing GIFs with built-in privacy con
 
 ![GIF](/public/gif-demo-max.gif)
 
+# [Detailed Guide here!](https://medium.com/@ghumare64/building-your-own-gif-hosting-platform-f9baee7bcfb1)
+
 ## ✨ Features
 
 - 🔒 **Privacy Controls**: Public and private GIF sharing options
